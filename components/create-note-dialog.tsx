@@ -11,6 +11,7 @@ import { FileText, Mic, Video, Save, Edit } from "lucide-react"
 import { TextNoteEditor } from "@/components/text-note-editor"
 import { AudioNoteRecorder } from "@/components/audio-note-recorder"
 import { VideoNoteRecorder } from "@/components/video-note-recorder"
+import { getFileStorageManager } from "@/lib/file-storage"
 
 interface CreateNoteDialogProps {
   open: boolean
@@ -30,35 +31,62 @@ export function CreateNoteDialog({ open, onOpenChange, onNoteCreated, username }
   const [tags, setTags] = useState("")
   const [mood, setMood] = useState("")
 
-  const handleSave = (noteTitle?: string, noteContent?: string | Blob, duration?: number, thumbnail?: Blob) => {
+  const handleSave = async (noteTitle?: string, noteContent?: string | Blob, duration?: number, thumbnail?: Blob) => {
     const finalTitle = noteTitle || title
 
     if (!finalTitle.trim()) return
+
+    const userSettings = JSON.parse(localStorage.getItem(`mydiary_settings_${username}`) || "{}")
+    const fileStorage = getFileStorageManager(username, userSettings.diaryPath || "")
 
     const newNote = {
       id: Date.now().toString(),
       title: finalTitle.trim(),
       type: noteType,
       content: noteType === "text" ? (noteContent as string) || content : "",
-      audioData: noteType === "audio" ? noteContent : undefined,
-      videoData: noteType === "video" ? noteContent : undefined,
-      thumbnail: thumbnail,
-      duration: duration || 0,
+      blob: noteType !== "text" ? (noteContent as Blob) : undefined,
+      date: new Date().toISOString(),
       tags: tags
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean),
       mood,
-      date: new Date().toISOString(),
-      createdAt: Date.now(),
+      duration: duration || 0,
     }
 
-    // Save to localStorage
-    const existingNotes = JSON.parse(localStorage.getItem(`mydiary_notes_${username}`) || "[]")
-    existingNotes.push(newNote)
-    localStorage.setItem(`mydiary_notes_${username}`, JSON.stringify(existingNotes))
+    console.log("[v0] Attempting to save note:", { title: finalTitle, type: noteType })
 
-    // Reset form
+    try {
+      const success = await fileStorage.saveNoteToFile(newNote)
+
+      if (success) {
+        console.log("[v0] Note saved successfully")
+      } else {
+        console.log("[v0] Note saved to localStorage as fallback")
+        if (noteType !== "text" || userSettings.diaryPath) {
+          fileStorage.downloadFile(newNote)
+        }
+      }
+    } catch (error) {
+      console.log("[v0] Error saving note:", error)
+      const existingNotes = JSON.parse(localStorage.getItem(`mydiary_notes_${username}`) || "[]")
+      existingNotes.push({
+        id: newNote.id,
+        title: newNote.title,
+        type: newNote.type,
+        content: newNote.content,
+        audioData: noteType === "audio" ? noteContent : undefined,
+        videoData: noteType === "video" ? noteContent : undefined,
+        thumbnail: thumbnail,
+        duration: newNote.duration,
+        tags: newNote.tags,
+        mood: newNote.mood,
+        date: newNote.date,
+        createdAt: Date.now(),
+      })
+      localStorage.setItem(`mydiary_notes_${username}`, JSON.stringify(existingNotes))
+    }
+
     resetForm()
     onNoteCreated()
   }

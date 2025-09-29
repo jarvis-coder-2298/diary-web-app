@@ -50,6 +50,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [currentUser, setCurrentUser] = useState("")
   const [currentView, setCurrentView] = useState<ViewMode>("dashboard")
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [isDirectorySetup, setIsDirectorySetup] = useState(false)
   const [stats, setStats] = useState<DiaryStats>({
     totalNotes: 0,
     textNotes: 0,
@@ -65,8 +66,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
     if (user) {
       setCurrentUser(user)
       loadUserStats(user)
+      checkDirectorySetup(user)
     }
   }, [])
+
+  const checkDirectorySetup = (username: string) => {
+    const userSettings = JSON.parse(localStorage.getItem(`mydiary_settings_${username}`) || "{}")
+    const isSetup = localStorage.getItem(`mydiary_directory_initialized_${username}`) === "true"
+    setIsDirectorySetup(isSetup)
+  }
 
   const loadUserStats = (username: string) => {
     const userNotes = JSON.parse(localStorage.getItem(`mydiary_notes_${username}`) || "[]")
@@ -169,6 +177,35 @@ export function Dashboard({ onLogout }: DashboardProps) {
       default:
         return (
           <div className="space-y-12">
+            {!isDirectorySetup && (
+              <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
+                <CardContent className="p-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="p-2 bg-orange-500 rounded-lg">
+                      <Sparkles className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-orange-800 dark:text-orange-200 mb-2">
+                        Set up Local File Storage
+                      </h3>
+                      <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
+                        Configure your diary to save notes as files on your computer with organized folders (Text/,
+                        Audio/, Video/). Your notes will be saved with timestamps like "2025-01-15_MyNote.txt".
+                      </p>
+                      <Button
+                        onClick={() => setCurrentView("settings")}
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Go to Settings
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="text-center relative">
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-96 h-96 bg-gradient-to-r from-indigo-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse"></div>

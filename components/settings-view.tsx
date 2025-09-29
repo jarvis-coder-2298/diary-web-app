@@ -23,7 +23,12 @@ import {
   Save,
   Trash2,
   AlertTriangle,
+  Folder,
+  FolderOpen,
+  CheckCircle,
+  XCircle,
 } from "lucide-react"
+import { getFileStorageManager } from "@/lib/file-storage"
 
 interface SettingsViewProps {
   username: string
@@ -85,24 +90,74 @@ export function SettingsView({ username }: SettingsViewProps) {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings)
   const [hasChanges, setHasChanges] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDirectoryInitialized, setIsDirectoryInitialized] = useState(false)
+  const [isInitializingDirectory, setIsInitializingDirectory] = useState(false)
 
   useEffect(() => {
     loadSettings()
+    checkDirectoryStatus()
   }, [username])
+
+  const checkDirectoryStatus = () => {
+    const fileStorage = getFileStorageManager(username, settings.diaryPath)
+    setIsDirectoryInitialized(fileStorage.isDirectoryInitialized())
+  }
 
   const loadSettings = () => {
     const savedSettings = localStorage.getItem(`mydiary_settings_${username}`)
     if (savedSettings) {
-      setSettings({ ...defaultSettings, ...JSON.parse(savedSettings) })
+      const loadedSettings = { ...defaultSettings, ...JSON.parse(savedSettings) }
+      setSettings(loadedSettings)
+      setTimeout(() => {
+        const fileStorage = getFileStorageManager(username, loadedSettings.diaryPath)
+        setIsDirectoryInitialized(fileStorage.isDirectoryInitialized())
+      }, 100)
     }
   }
 
   const saveSettings = () => {
     localStorage.setItem(`mydiary_settings_${username}`, JSON.stringify(settings))
     setHasChanges(false)
-
-    // Apply theme immediately
     applyTheme(settings.theme)
+  }
+
+  const initializeDirectoryStructure = async () => {
+    setIsInitializingDirectory(true)
+
+    try {
+      const fileStorage = getFileStorageManager(username, settings.diaryPath)
+
+      if (!fileStorage.isFileSystemAccessSupported()) {
+        alert(
+          "File System Access API is not supported in your browser. Notes will be saved to localStorage and can be downloaded individually.",
+        )
+        setIsInitializingDirectory(false)
+        return
+      }
+
+      const success = await fileStorage.initializeDirectoryStructure()
+
+      if (success) {
+        setIsDirectoryInitialized(true)
+        alert(
+          "Directory structure initialized successfully! Your notes will now be saved to the selected folder with subfolders for Text, Audio, and Video.",
+        )
+      } else {
+        alert("Failed to initialize directory structure. Notes will continue to be saved to localStorage.")
+      }
+    } catch (error) {
+      console.log("[v0] Error initializing directory:", error)
+      alert("Error initializing directory structure. Please try again.")
+    }
+
+    setIsInitializingDirectory(false)
+  }
+
+  const resetDirectoryInitialization = () => {
+    const fileStorage = getFileStorageManager(username, settings.diaryPath)
+    fileStorage.resetDirectoryInitialization()
+    setIsDirectoryInitialized(false)
+    alert("Directory initialization has been reset. You can now select a new directory.")
   }
 
   const applyTheme = (theme: string) => {
@@ -112,7 +167,6 @@ export function SettingsView({ username }: SettingsViewProps) {
     } else if (theme === "light") {
       root.classList.remove("dark")
     } else {
-      // System theme
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
       if (prefersDark) {
         root.classList.add("dark")
@@ -247,8 +301,64 @@ export function SettingsView({ username }: SettingsViewProps) {
                 placeholder="e.g., D:/MyDiary/ (optional)"
               />
               <p className="text-xs text-muted-foreground">
-                Local folder path where your diary files would be saved (for reference only)
+                Local folder path where your diary files will be saved. Leave empty to use browser storage.
               </p>
+            </div>
+
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">File System Setup</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Initialize local directory structure for saving notes as files
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {isDirectoryInitialized ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">{isDirectoryInitialized ? "Initialized" : "Not Set"}</span>
+                </div>
+              </div>
+
+              <div className="flex space-x-2">
+                {!isDirectoryInitialized ? (
+                  <Button
+                    onClick={initializeDirectoryStructure}
+                    disabled={isInitializingDirectory}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    {isInitializingDirectory ? "Setting up..." : "Choose Directory"}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={resetDirectoryInitialization}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 bg-transparent"
+                  >
+                    <Folder className="h-4 w-4 mr-2" />
+                    Change Directory
+                  </Button>
+                )}
+              </div>
+
+              {isDirectoryInitialized && (
+                <div className="text-xs text-muted-foreground bg-green-50 dark:bg-green-900/20 p-3 rounded border border-green-200 dark:border-green-800">
+                  <p className="font-medium text-green-700 dark:text-green-300 mb-1">Directory Structure Ready!</p>
+                  <p>Your notes will be saved with the following structure:</p>
+                  <ul className="mt-2 space-y-1 font-mono text-green-600 dark:text-green-400">
+                    <li>📁 /YourChosenFolder/</li>
+                    <li>&nbsp;&nbsp;&nbsp;&nbsp;📁 /Text/ → 2025-01-15_MyNote.txt</li>
+                    <li>&nbsp;&nbsp;&nbsp;&nbsp;📁 /Audio/ → 2025-01-15_Recording.mp3</li>
+                    <li>&nbsp;&nbsp;&nbsp;&nbsp;📁 /Video/ → 2025-01-15_Memory.mp4</li>
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
