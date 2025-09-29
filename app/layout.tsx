@@ -5,12 +5,13 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
-import { Geist as V0_Font_Geist, Geist_Mono as V0_Font_Geist_Mono, Source_Serif_4 as V0_Font_Source_Serif_4 } from "next/font/google"
+import { Source_Serif_4 } from "next/font/google"
 
-// ✅ Assign fonts to constants at module scope
-const v0Geist = V0_Font_Geist({ weight: ["100","200","300","400","500","600","700","800","900"], subsets: ["latin"] })
-const v0GeistMono = V0_Font_Geist_Mono({ weight: ["100","200","300","400","500","600","700","800","900"], subsets: ["latin"] })
-const v0Serif = V0_Font_Source_Serif_4({ weight: ["200","300","400","500","600","700","800","900"], subsets: ["latin"] })
+// ✅ Only import Google fonts that actually exist
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["200","300","400","500","600","700","800","900"],
+})
 
 export const metadata: Metadata = {
   title: "MyDiary - Your Digital Sanctuary",
@@ -24,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${v0Geist.className} ${v0GeistMono.className} ${v0Serif.className}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${sourceSerif.className}`}>
       <body className="font-sans antialiased">
         <Suspense fallback={null}>{children}</Suspense>
         <Analytics />
